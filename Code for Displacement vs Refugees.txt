@@ -1,0 +1,96 @@
+# Do countries with more internally displaced people (IDPs)
+# also send more refugees to the U.S.?
+# Makes 3 graphs:
+#   Graph 1: Conflict IDPs vs refugees (colored by time period)
+#   Graph 2: Disaster displacement vs refugees (colored by time period)
+#   Graph 3: Case study of DR Congo over time
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# ---------- 1. Read the data ----------
+df = pd.read_csv("forced_migration_panel.csv")
+
+
+# ---------- 2. Put each year into a time period ----------
+def get_period(year):
+    if year <= 2016:
+        return "2014-2016"
+    elif year <= 2020:
+        return "2017-2020"
+    else:
+        return "2021-2023"
+
+
+df["period"] = df["year"].apply(get_period)
+
+# ---------- 3. Average each country's numbers within each period ----------
+avg = df.groupby(["country", "period"])[["refugees", "idps_conflict_lag1", "new_displacements_disaster_lag1"]].mean()
+avg = avg.reset_index()
+
+periods = ["2014-2016", "2017-2020", "2021-2023"]
+colors = ["#2a78d6", "#eb6834", "#1baf7a"]
+
+
+# ---------- 4. A function that makes one scatter plot ----------
+def make_scatter(x_column, x_label, title, file_name):
+    plt.figure(figsize=(8, 6))
+
+    for i in range(len(periods)):
+        p = periods[i]
+        data = avg[avg["period"] == p]
+        corr = data[x_column].corr(data["refugees"], method="spearman")
+        print(title, p, "correlation:", round(corr, 2))
+        plt.scatter(data[x_column], data["refugees"], color=colors[i], alpha=0.7,
+                    label=p + " (correlation = " + str(round(corr, 2)) + ")")
+
+    plt.xscale("symlog", linthresh=100)
+    plt.yscale("symlog", linthresh=10)
+    plt.xlabel(x_label)
+    plt.ylabel("Refugees admitted to the U.S. per year (average)")
+    plt.title(title)
+    plt.legend(title="Time period")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(file_name, dpi=200)
+
+
+# ---------- Graph 1: Conflict IDPs vs refugees ----------
+make_scatter("idps_conflict_lag1",
+             "People internally displaced by conflict (previous year, average)",
+             "Graph 1: Conflict displacement vs refugees",
+             "graph1_conflict.png")
+
+# ---------- Graph 2: Disaster displacement vs refugees ----------
+make_scatter("new_displacements_disaster_lag1",
+             "People newly displaced by disasters (previous year, average)",
+             "Graph 2: Disaster displacement vs refugees",
+             "graph2_disaster.png")
+
+# ---------- Graph 3: DR Congo case study ----------
+drc = df[df["country"] == "DR Congo"]
+
+fig, (top, bottom) = plt.subplots(2, 1, figsize=(8, 7), sharex=True)
+
+# top chart: IDPs (shown in millions so the numbers are easier to read)
+top.plot(drc["year"], drc["idps_conflict_lag1"] / 1000000, marker="o", color="#2a78d6")
+top.set_ylabel("Conflict IDPs (millions)\nprevious year")
+top.set_title("Graph 3: DR Congo — displacement rose, but U.S. admissions followed policy")
+top.set_ylim(bottom=0)
+top.grid(alpha=0.3)
+
+# bottom chart: refugees admitted to the U.S.
+bottom.bar(drc["year"], drc["refugees"], color="#eb6834")
+bottom.set_ylabel("Refugees admitted\nto the U.S.")
+bottom.set_xlabel("Year")
+bottom.grid(alpha=0.3, axis="y")
+bottom.annotate("2020: U.S. cuts\nrefugee program", xy=(2020, 2860), xytext=(2017.6, 14000),
+                arrowprops=dict(arrowstyle="->"))
+
+plt.xticks(drc["year"])
+plt.tight_layout()
+plt.savefig("graph3_drc.png", dpi=200)
+
+plt.show()
+# def code_of_the_day():
+    # return "SDZN"  # my code of the day
